@@ -1,0 +1,21 @@
+PORT=3001
+NODE_ENV=development
+
+# Base de données
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=.........
+DB_USER=postgres
+DB_PASSWORD=.....
+
+
+EB3_PROVIDER_URL=http://localhost:7545  # Port par défaut de Ganache
+CONTRACT_ADDRESS=.......  # Après déploiement sur Ganache
+CHAIN_ID=1337                             # Chain ID de Ganache
+
+# CORS
+CORS_ORIGIN=http://localhost:5173
+
+# Ganache Par défaut
+GANACHE_MNEMONIC=............................
+GANACHE_ACCOUNTS=10
