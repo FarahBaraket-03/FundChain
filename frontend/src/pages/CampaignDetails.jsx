@@ -5,6 +5,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useStateContext } from '../context';
 import { CountBox, CustomButton, Loader } from '../components';
 import { calculateBarPercentage, daysLeft } from '../utils';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeSanitize from 'rehype-sanitize';
 
 
 const CampaignDetails = () => {
@@ -86,7 +89,7 @@ const CampaignDetails = () => {
     const goalReached = parseFloat(campaign.amountCollected) >= parseFloat(campaign.target);
 
     if (!campaign.isActive && goalReached) return 'success';
-    if (!campaign.isActive && !goalReached) return 'failed';
+    if (isEnded && !goalReached) return 'failed';
     if (campaign.isActive && !isEnded) return 'active';
     if (!campaign.isActive) return 'cancelled';
     
@@ -448,10 +451,24 @@ const CampaignDetails = () => {
               {/* Description */}
               <div className="mb-6">
                 <h4 className="font-epilogue font-semibold text-[18px] text-white mb-4">Description</h4>
-                <div className="p-4 bg-[#1c1c24] rounded-[15px]">
-                  <p className="font-epilogue font-normal text-[16px] text-[#808191] leading-relaxed">
-                    {campaign.description}
-                  </p>
+                <div className="p-4 bg-[#1c1c24] rounded-[15px] prose prose-invert max-w-full font-epilogue font-semibold text-[16px] break-all   text-white">
+                  {/* Render description as sanitized Markdown (no code execution) */}
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeSanitize]}
+                    components={{
+                      // Keep code blocks as-is (no execution). You can add syntax highlighting later.
+                      code({node, inline, className, children, ...props}){
+                        return inline ? (
+                          <code className={className} {...props}>{children}</code>
+                        ) : (
+                          <pre className="rounded bg-[#111214] p-3 overflow-auto"><code {...props}>{children}</code></pre>
+                        );
+                      }
+                    }}
+                  >
+                    {campaign.description || ''}
+                  </ReactMarkdown>
                 </div>
               </div>
 

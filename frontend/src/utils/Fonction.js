@@ -768,18 +768,29 @@ class ContractFunctions {
         }
     }
 
-    async getUserCampaigns() {
+    async getUserCampaigns(ownerAddress = null) {
         try {
             if (!this.isInitialized || !this.contract) {
                 throw new Error('Contrat non initialisé. Veuillez vous connecter d\'abord.');
             }
 
             const allCampaigns = await this.getCampaigns();
-            const filteredCampaigns = allCampaigns.filter((campaign) => 
-                campaign.owner.toLowerCase() === this.account.toLowerCase()
-            );
+            const accountToUse = ownerAddress || this.account;
+
+            if (!accountToUse) {
+                console.warn('getUserCampaigns: aucune adresse fournie ni compte connecté — retournement d\'un tableau vide');
+                return [];
+            }
+
+            const filteredCampaigns = allCampaigns.filter((campaign) => {
+                try {
+                    return campaign.owner && campaign.owner.toLowerCase() === accountToUse.toLowerCase();
+                } catch (err) {
+                    return false;
+                }
+            });
             
-            console.log('Campagnes utilisateur:', filteredCampaigns);
+            console.log('Campagnes utilisateur pour', accountToUse, ':', filteredCampaigns);
             return filteredCampaigns;
         } catch (error) {
             console.error('❌ Erreur getUserCampaigns:', error);
@@ -824,7 +835,7 @@ class ContractFunctions {
         const balance = await this.web3.eth.getBalance(this.account);
         const balanceInEth = this.web3.utils.fromWei(balance, 'ether');
         
-        if (parseFloat(balanceInEth) < amountInEther + 0.001) {
+        if (parseFloat(balanceInEth) < amountInEther ) {
             throw new Error(`Solde insuffisant. Vous avez ${balanceInEth} ETH, besoin de ${amountInEther} ETH + frais de transaction`);
         }
 
@@ -1012,25 +1023,28 @@ async syncCampaignAmountCollected(campaignId) {
             return;
         }
 
-        // Extraire et convertir le montant
-        let rawAmount = campaign.amountCollected || campaign.amount_collected || 0;
-        let amountInEth;
-        
+        console.log(`Montant brut depuis getCampaignDetails pour ${campaignId}:`, campaign.amountCollected);
+
+        // getCampaignDetails returns numeric ETH values for amountCollected when possible
+        const rawAmount = campaign.amountCollected;
+        console.log(`Montant brut depuis blockchain pour ${campaignId}:`, rawAmount);
+        let amountInEth = 0;
         try {
-            // Si c'est une string contenant un point, c'est déjà en ETH
-            if (typeof rawAmount === 'string' && rawAmount.includes('.')) {
-                amountInEth = parseFloat(rawAmount);
-            } 
-            // Sinon, convertir depuis wei
-            else {
-                // Convertir en string si nécessaire
-                const amountStr = rawAmount.toString();
-                amountInEth = parseFloat(this.web3.utils.fromWei(amountStr, 'ether'));
+            if (typeof rawAmount === 'number' && !Number.isNaN(rawAmount)) {
+                amountInEth = rawAmount;
+            } else if (typeof rawAmount === 'string') {
+                const parsed = parseFloat(rawAmount);
+                if (!Number.isNaN(parsed)) {
+                    amountInEth = parsed;
+                } else {
+                    // Fallback: treat as wei string
+                    amountInEth = parseFloat(this.web3.utils.fromWei(rawAmount.toString(), 'ether'));
+                }
+            } else if (rawAmount && rawAmount.toString) {
+                amountInEth = parseFloat(this.web3.utils.fromWei(rawAmount.toString(), 'ether'));
             }
-            
-            // Arrondir à 8 décimales (comme votre modèle DECIMAL(18,8))
-            amountInEth = parseFloat(amountInEth.toFixed(8));
-            
+
+            amountInEth = parseFloat(Number(amountInEth).toFixed(8));
         } catch (convError) {
             console.warn(`Erreur conversion montant ${campaignId}:`, convError);
             amountInEth = 0;
@@ -1118,12 +1132,12 @@ async syncCampaignAmountCollected(campaignId) {
             owner: details.owner,
             title: details.title || 'Untitled',
             description: details.description || 'No description',
-            target: this.web3.utils.fromWei(details.target.toString(), 'ether'),
+            target: parseFloat(this.web3.utils.fromWei(details.target.toString(), 'ether')),
             deadline: details.deadline,
-            amountCollected: this.web3.utils.fromWei(details.amountCollected.toString(), 'ether'),
+            amountCollected: parseFloat(this.web3.utils.fromWei(details.amountCollected.toString(), 'ether')),
             image: details.image || 'https://via.placeholder.com/600x400?text=No+Image',
             isActive: details.isActive,
-            fundsWithdrawn: this.web3.utils.fromWei(details.fundsWithdrawn.toString(), 'ether'),
+            fundsWithdrawn: parseFloat(this.web3.utils.fromWei(details.fundsWithdrawn.toString(), 'ether')),
             isVerified: details.isVerified, // ✅ NOUVEAU CHAMP
             pId: parseInt(pId)
         };
@@ -1220,10 +1234,10 @@ async syncCampaignAmountCollected(campaignId) {
             .createCampaign(
                 this.account,
                 form.title,
-                form.description || '',
+                form.description ,
                 targetWei,
                 deadlineTimestamp,
-                form.image || ''
+                form.image 
             )
             .send({ from: this.account });
 
@@ -1306,7 +1320,7 @@ async syncToBackend(data, form) {
     
     
     try {
-        console.log("lien : ",form.socialLinks.other || '');
+        console.log("lien : ",form.link);
         // Transformer l'objet frontend vers le format backend
         const campaignData = {
             blockchain_id: data.blockchainId,
@@ -1321,7 +1335,7 @@ async syncToBackend(data, form) {
             is_verified: true,
             funds_withdrawn: 0,
             category_id: form.category,
-            social_links: form.socialLinks.other || ''
+            social_links: form.link 
         };
 
         console.log('📤 Données transformées pour le backend:', campaignData);
@@ -1640,8 +1654,9 @@ async isCampaignWithdrawable(_id) {
         
         const isOwner = campaign.owner.toLowerCase() === this.account.toLowerCase();
         const isEnded = Math.floor(Date.now() / 1000) > Number(campaign.deadline);
-        const amountCollected = parseFloat(this.web3.utils.fromWei(campaign.amountCollected.toString(), 'ether'));
-        const targetAmount = parseFloat(this.web3.utils.fromWei(campaign.target.toString(), 'ether'));
+        // `campaign.amountCollected` and `campaign.target` are already converted to ETH strings
+        const amountCollected = parseFloat(campaign.amountCollected);
+        const targetAmount = parseFloat(campaign.target);
         const goalReached = amountCollected >= targetAmount;
         
         const fundsWithdrawn = parseFloat(campaign.fundsWithdrawn || 0);
@@ -1952,9 +1967,10 @@ async syncCampaignFundsWithdrawn(campaignId) {
             // Inclure les champs obligatoires
             owner_address: campaign.owner || this.account,
             title: campaign.title || 'Campaign',
-            target_amount: parseFloat(this.web3.utils.fromWei(campaign.target.toString(), 'ether')),
+            // `campaign.target` and `campaign.amountCollected` are already ETH strings
+            target_amount: parseFloat(campaign.target || 0),
             deadline: parseInt(campaign.deadline),
-            amount_collected: parseFloat(this.web3.utils.fromWei(campaign.amountCollected.toString(), 'ether'))
+            amount_collected: parseFloat(campaign.amountCollected || 0)
         };
 
         const response = await fetch('http://localhost:3001/api/campaigns/sync', {
@@ -2429,14 +2445,16 @@ async checkWithdrawalEligibility(pId) {
         
         const isOwner = campaign.owner.toLowerCase() === this.account.toLowerCase();
         const isEnded = currentTime > deadline;
-        const amountCollected = parseFloat(this.web3.utils.fromWei(campaign.amountCollected.toString(), 'ether'));
-        const targetAmount = parseFloat(this.web3.utils.fromWei(campaign.target.toString(), 'ether'));
+        // `campaign.amountCollected` and `campaign.target` are already ETH strings (converted in getCampaignDetails)
+        const amountCollected = parseFloat(campaign.amountCollected);
+        const targetAmount = parseFloat(campaign.target);
         const goalReached = amountCollected >= targetAmount;
         
         // Récupérer les fonds déjà retirés (si le champ existe)
         let fundsWithdrawn = 0;
         if (campaign.fundsWithdrawn !== undefined) {
-            fundsWithdrawn = parseFloat(this.web3.utils.fromWei(campaign.fundsWithdrawn.toString(), 'ether'));
+            // Already in ETH string
+            fundsWithdrawn = parseFloat(campaign.fundsWithdrawn || 0);
         }
         
         const hasAvailableFunds = amountCollected > fundsWithdrawn;
@@ -2593,6 +2611,8 @@ getWithdrawalErrorMessage(isOwner, isEnded, goalReached, hasAvailableFunds, isAc
                         amountDonated: contributionAmount,
                         campaignTarget: campaign.target,
                         campaignAmountCollected: campaign.amountCollected,
+                        // Ajouter le montant déjà retiré par le propriétaire (utile pour la logique de remboursement)
+                        campaignFundsWithdrawn: campaign.fundsWithdrawn,
                         campaignDeadline: campaign.deadline,
                         campaignIsActive: campaign.isActive,
                         isRefundClaimed: isRefundClaimed,
@@ -2664,7 +2684,12 @@ getWithdrawalErrorMessage(isOwner, isEnded, goalReached, hasAvailableFunds, isAc
 
     // Conditions pour le remboursement :
     // 1. Campagne annulée par le propriétaire
-    if (!campaign.isActive) return true;
+    // Si la campagne est annulée, autoriser le remboursement uniquement si aucun fonds
+    // n'a été retiré par le propriétaire (fundsWithdrawn === 0).
+    if (!campaign.isActive) {
+        const fundsWithdrawn = parseFloat(campaign.fundsWithdrawn || campaign.funds_withdrawn || 0);
+        return fundsWithdrawn === 0;
+    }
     
     // 2. Campagne terminée et objectif non atteint
     if (campaignEnded && goalNotReached) return true;

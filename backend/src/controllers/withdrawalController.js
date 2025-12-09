@@ -13,6 +13,12 @@ class WithdrawalController {
         block_number
       } = req.body;
 
+      // Coerce amount to number and validate
+      const amountValue = parseFloat(amount);
+      if (!isFinite(amountValue)) {
+        return res.status(400).json({ error: 'Montant invalide' });
+      }
+
       // Validation
       if (!campaign_id || !recipient_address || !amount || !transaction_hash || !block_number) {
         return res.status(400).json({ 
@@ -42,14 +48,14 @@ class WithdrawalController {
       const withdrawal = await Withdrawal.create({
         campaign_id,
         recipient_address: recipient_address.toLowerCase(),
-        amount,
+        amount: amountValue,
         transaction_hash,
         block_number
       });
 
       // Mettre à jour les fonds retirés de la campagne
       await Campaign.increment('funds_withdrawn', {
-        by: amount,
+        by: amountValue,
         where: { blockchain_id: campaign_id }
       });
 

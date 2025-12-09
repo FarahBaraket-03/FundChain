@@ -6,6 +6,15 @@ import { useStateContext } from '../context';
 import { CustomButton, Loader } from '../components';
 import { money } from '../assets';
 
+// Inline SVG fallback to avoid external DNS dependency on via.placeholder.com
+const INLINE_PLACEHOLDER = 'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">` +
+    `<rect width="100%" height="100%" fill="#2c2f32"/>` +
+    `<text x="50%" y="50%" font-size="28" fill="#808191" dominant-baseline="middle" text-anchor="middle">📷</text>` +
+    `</svg>`
+  );
+
 const Payment = () => {
   const navigate = useNavigate();
   const { address, isInitialized, connect, getUserDonations, getUserDonationStats, refundDonation, claimRefundIfGoalNotMet, claimRefundAfterCancellation } = useStateContext();
@@ -49,31 +58,44 @@ const Payment = () => {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchData = async () => {
       if (isInitialized && address) {
-        setLoading(true);
+        if (!cancelled) setLoading(true);
         try {
           const [userDonations, donationStats] = await Promise.all([
             getUserDonations(),
             getUserDonationStats()
           ]);
-          
+
           console.log('📊 Dons récupérés:', userDonations); // Log pour debug
           console.log('📈 Stats récupérées:', donationStats); // Log pour debug
-          
-          setDonations(userDonations || []);
-          setStats(donationStats || {});
+
+          if (!cancelled) {
+            setDonations(userDonations || []);
+            setStats(donationStats || {});
+          }
         } catch (error) {
           console.error('❌ Erreur chargement dons:', error);
-          setDonations([]);
-          setStats({});
+          if (!cancelled) {
+            setDonations([]);
+            setStats({});
+          }
         } finally {
-          setLoading(false);
+          if (!cancelled) setLoading(false);
         }
+      } else {
+        // Si pas initialisé, s'assurer que le loader n'est pas affiché
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isInitialized, address, getUserDonations, getUserDonationStats]);
 
   const handleRefund = async (campaignId, refundType = 'standard') => {
@@ -156,9 +178,15 @@ const Payment = () => {
 
   const getRefundType = (donation) => {
     if (!donation) return 'standard';
-    
+    // Si campagne annulée -> rembourser après annulation seulement si
+    // les fonds n'ont pas été retirés par le propriétaire
     if (donation.status === 'cancelled' || donation.campaignIsActive === false) {
-      return 'afterCancellation';
+      const fundsWithdrawn = parseFloat(donation.campaignFundsWithdrawn || 0);
+      if (isNaN(fundsWithdrawn) || fundsWithdrawn === 0) {
+        return 'afterCancellation';
+      }
+      // Si des fonds ont été retirés, on n'autorise pas le remboursement
+      return 'none';
     }
     
     const currentTime = Math.floor(Date.now() / 1000);
@@ -200,7 +228,7 @@ const Payment = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0f0f15] to-[#1c1c24] py-8 px-4">
       <div className="max-w-7xl mx-auto">
-        {loading && <Loader message="Chargement de vos dons..." />}
+        {loading && donations.length === 0 && <Loader message="Chargement de vos dons..." />}
         
         {/* En-tête */}
         <div className="mb-10">
@@ -334,7 +362,9 @@ const Payment = () => {
                             alt={donation.campaignTitle || 'Campagne sans titre'}
                             className="w-25 h-25 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-[#3a3a43] group-hover:border-[#8c6dfd]/50 transition-colors"
                             onError={(e) => {
-                              e.target.src = 'https://via.placeholder.com/80x80/2c2f32/808191?text=📷';
+                              // Use inline SVG fallback when remote placeholder cannot be resolved
+                              e.target.src = INLINE_PLACEHOLDER;
+                              e.target.onerror = null;
                             }}
                           />
                           <div className={`absolute -top-2 -right-2 px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(donation.status)}`}>

@@ -1,5 +1,5 @@
 // pages/CreateCampaign.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useStateContext } from '../context';
@@ -18,17 +18,13 @@ const CreateCampaign = () => {
     deadline: '',
     image: '',
     category: '',
-    website: '',
-    facebook: '',
-    twitter: '',
-    linkedin: '',
-    instagram: '',
-    discord: '',
-    otherLink: ''
+    link: ''
   });
   const [imagePreview, setImagePreview] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [errors, setErrors] = useState({});
+  // Ref to prevent duplicate submissions (defensive guard)
+  const isSubmittingRef = useRef(false);
   const [showAIModal, setShowAIModal] = useState(false);
   
   // AI Suggestion States
@@ -36,6 +32,9 @@ const CreateCampaign = () => {
   const [aiInput, setAiInput] = useState('');
   const [aiError, setAiError] = useState('');
   const [aiSuggestions, setAiSuggestions] = useState(null);
+  
+  // Ref for AI textarea to keep focus while typing
+  const aiTextareaRef = useRef(null);
 
   const [n8nStatus, setN8nStatus] = useState('pending');
 
@@ -46,7 +45,7 @@ const CreateCampaign = () => {
 
   const checkN8nConnection = async () => {
     try {
-      const response = await fetch('');
+      const response = await fetch('https://nonunified-maxwell-noisome.ngrok-free.dev/webhook/test');
       if (response.ok) {
         setN8nStatus('connected');
       } else {
@@ -57,13 +56,33 @@ const CreateCampaign = () => {
     }
   };
 
+  // Keep the AI textarea focused while the modal is open and restore caret on re-renders
+  useEffect(() => {
+    if (showAIModal && aiTextareaRef.current) {
+      // focus on open
+      aiTextareaRef.current.focus();
+      // move caret to end
+      const len = aiTextareaRef.current.value?.length || 0;
+      aiTextareaRef.current.setSelectionRange(len, len);
+    }
+  }, [showAIModal]);
+
+  // Defensive: if aiInput changes and focus was lost, restore focus and caret
+  useEffect(() => {
+    if (showAIModal && aiTextareaRef.current && document.activeElement !== aiTextareaRef.current) {
+      aiTextareaRef.current.focus();
+      const len = aiTextareaRef.current.value?.length || 0;
+      aiTextareaRef.current.setSelectionRange(len, len);
+    }
+  }, [aiInput, showAIModal]);
+
   const getAISuggestions = async (title, description) => {
     setIsAILoading(true);
     setAiError('');
     setAiSuggestions(null);
     console.log('Demande de suggestions IA avec:', { title, description, prompt: aiInput });
     try {
-      const response = await fetch('', {
+      const response = await fetch('link of ngrok', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -156,6 +175,13 @@ const CreateCampaign = () => {
             placeholder="Ex: 'Rends la description plus professionnelle', 'Ajoute des détails sur l'impact', 'Fais une version courte'..."
             value={aiInput}
             onChange={(e) => setAiInput(e.target.value)}
+            ref={aiTextareaRef}
+            // defensive: if blurred while modal open, re-focus
+            onBlur={() => {
+              if (showAIModal && aiTextareaRef.current) {
+                aiTextareaRef.current.focus();
+              }
+            }}
             rows={3}
             className="w-full bg-[#1c1c24] border-2 border-[#3a3a43] rounded-[10px] py-3 px-4 text-white font-epilogue font-normal text-[14px] placeholder-[#4b5264] focus:border-[#8c6dfd] focus:outline-none resize-none"
           />
@@ -285,26 +311,31 @@ const CreateCampaign = () => {
       return;
     }
 
+    // Prevent double-submit
+    if (isSubmittingRef.current) {
+      console.warn('Submission blocked: already submitting');
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }
 
+    // Mark as submitting right away to avoid races
+    isSubmittingRef.current = true;
     setIsUploading(true);
-    
-    checkIfImage(form.image, async (exists) => {
+
+    // Wrap callback to ensure it only runs once (defensive against double-calls)
+    let callbackCalled = false;
+    const oneTimeCallback = async (exists) => {
+      if (callbackCalled) return;
+      callbackCalled = true;
+
       if (exists) {
         try {
           const campaignData = {
             ...form,
-            socialLinks: {
-              website: form.website,
-              facebook: form.facebook,
-              twitter: form.twitter,
-              linkedin: form.linkedin,
-              instagram: form.instagram,
-              discord: form.discord,
-              other: form.otherLink
-            }
+            socialLinks: { link: form.link }
           };
 
           await createCampaign(campaignData);
@@ -319,8 +350,20 @@ const CreateCampaign = () => {
         setErrors(prev => ({ ...prev, image: 'URL d\'image invalide' }));
         setImagePreview('');
       }
+
       setIsUploading(false);
-    });
+      // release guard so user can retry after completion/error
+      isSubmittingRef.current = false;
+    };
+
+    // Call image checker with one-time callback
+    try {
+      checkIfImage(form.image, oneTimeCallback);
+    } catch (err) {
+      console.error('Erreur lors de la vérification de l\'image:', err);
+      setIsUploading(false);
+      isSubmittingRef.current = false;
+    }
   };
 
   const getMinDate = () => {
@@ -629,78 +672,17 @@ const CreateCampaign = () => {
                   </p>
                   
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField 
-                        labelName="Site Web"
+                    <div className="grid grid-cols-1 gap-4">
+                      <FormField
+                        labelName="Lien (site web ou réseau)"
                         placeholder="https://votre-projet.com"
                         inputType="url"
-                        value={form.website}
-                        handleChange={(e) => handleFormFieldChange('website', e)}
-                        icon="🌐"
-                        optional
-                      />
-                      <FormField 
-                        labelName="Facebook"
-                        placeholder="https://facebook.com/votre-page"
-                        inputType="url"
-                        value={form.facebook}
-                        handleChange={(e) => handleFormFieldChange('facebook', e)}
-                        icon="📘"
+                        value={form.link}
+                        handleChange={(e) => handleFormFieldChange('link', e)}
+                        icon="🔗"
                         optional
                       />
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField 
-                        labelName="Twitter (X)"
-                        placeholder="https://twitter.com/votre-compte"
-                        inputType="url"
-                        value={form.twitter}
-                        handleChange={(e) => handleFormFieldChange('twitter', e)}
-                        icon="🐦"
-                        optional
-                      />
-                      <FormField 
-                        labelName="LinkedIn"
-                        placeholder="https://linkedin.com/company/votre-entreprise"
-                        inputType="url"
-                        value={form.linkedin}
-                        handleChange={(e) => handleFormFieldChange('linkedin', e)}
-                        icon="💼"
-                        optional
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField 
-                        labelName="Instagram"
-                        placeholder="https://instagram.com/votre-compte"
-                        inputType="url"
-                        value={form.instagram}
-                        handleChange={(e) => handleFormFieldChange('instagram', e)}
-                        icon="📸"
-                        optional
-                      />
-                      <FormField 
-                        labelName="Discord"
-                        placeholder="https://discord.gg/votre-serveur"
-                        inputType="url"
-                        value={form.discord}
-                        handleChange={(e) => handleFormFieldChange('discord', e)}
-                        icon="🎮"
-                        optional
-                      />
-                    </div>
-                    
-                    <FormField 
-                      labelName="Autre Lien"
-                      placeholder="https://autre-lien.com"
-                      inputType="url"
-                      value={form.otherLink}
-                      handleChange={(e) => handleFormFieldChange('otherLink', e)}
-                      icon="🔗"
-                      optional
-                    />
                   </div>
                 </div>
 

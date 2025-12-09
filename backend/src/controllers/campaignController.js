@@ -119,27 +119,54 @@ class CampaignController {
         });
       }
 
-      console.log(`🔄 data `,req.body);
-      const [campaign, created] = await Campaign.upsert({
+      console.log(`🔄 data `, req.body);
+
+      // Find existing campaign; if exists, update only provided fields to avoid
+      // accidentally clearing description/image when sync payload is partial.
+      const existing = await Campaign.findOne({ where: { blockchain_id } });
+
+      if (existing) {
+        const updateFields = {};
+        if (owner_address) updateFields.owner_address = owner_address.toLowerCase();
+        if (title !== undefined) updateFields.title = title;
+        if (description !== undefined) updateFields.description = description;
+        if (target_amount !== undefined) updateFields.target_amount = target_amount;
+        if (deadline !== undefined) updateFields.deadline = deadline;
+        if (amount_collected !== undefined) updateFields.amount_collected = amount_collected;
+        if (image_url !== undefined) updateFields.image_url = image_url;
+        if (is_active !== undefined) updateFields.is_active = is_active;
+        if (is_verified !== undefined) updateFields.is_verified = is_verified;
+        if (funds_withdrawn !== undefined) updateFields.funds_withdrawn = funds_withdrawn;
+        if (category_id !== undefined) updateFields.category_id = category_id;
+        if (social_links !== undefined) updateFields.social_links = social_links;
+
+        // Only perform update if there are fields to change
+        if (Object.keys(updateFields).length > 0) {
+          await existing.update(updateFields);
+        }
+
+        const refreshed = await Campaign.findOne({ where: { blockchain_id } });
+        return res.status(200).json({ message: 'Campagne mise à jour', campaign: refreshed });
+      }
+
+      // Create new campaign when not existing
+      const createdCampaign = await Campaign.create({
         blockchain_id,
         owner_address: owner_address.toLowerCase(),
         title,
-        description: description || '',
+        description: description || null,
         target_amount,
         deadline,
-        amount_collected: amount_collected || 0,
-        image_url: image_url || '',
+        amount_collected: amount_collected ,
+        image_url: image_url || null,
         is_active: is_active !== undefined ? is_active : true,
         is_verified: is_verified || false,
         funds_withdrawn: funds_withdrawn || 0,
-        category_id: category_id ,
-        social_links: social_links 
+        category_id: category_id || null,
+        social_links: social_links || ''
       });
 
-      res.status(created ? 201 : 200).json({
-        message: created ? 'Campagne créée' : 'Campagne mise à jour',
-        campaign
-      });
+      res.status(201).json({ message: 'Campagne créée', campaign: createdCampaign });
     } catch (error) {
       console.error('❌ Erreur lors de la synchronisation de la campagne:', error);
       
