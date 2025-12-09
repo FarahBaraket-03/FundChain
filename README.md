@@ -1,6 +1,6 @@
 # 🌐 FundChain - Decentralized Crowdfunding Platform
 
-<div align="center">
+<div align="center"> 
 
 ![Blockchain](https://img.shields.io/badge/Blockchain-Ethereum-blue?style=for-the-badge&logo=ethereum)
 ![Solidity](https://img.shields.io/badge/Solidity-Smart_Contracts-purple?style=for-the-badge&logo=solidity)
