@@ -64,9 +64,15 @@
 
 ### 📺 **Watch FundChain in Action**
 
-<video src="https://github.com/FarahBaraket-03/FundChain/assets/FundChain%20-%20Opera%202025-12-09%2006-42-21.mp4" controls width="100%" autoplay muted loop>
-  Your browser does not support the video tag.
-</video>
+> **📹 Full Demo Video Available**  
+> Due to file size limitations, the complete demo video (257 MB) is available locally at:  
+> `frontend/src/assets/FundChain - Opera 2025-12-09 06-42-21.mp4`
+>
+> **Alternative Options:**
+> - 📺 [Upload to YouTube](https://youtube.com) (Recommended for best viewing experience)
+> - 💾 [Google Drive](https://drive.google.com)
+> - 🎬 [Vimeo](https://vimeo.com)
+> - ▶️ [Loom](https://loom.com)
 
 **See the complete walkthrough of:**
 - 🎬 Creating a campaign with AI-generated descriptions
@@ -77,7 +83,7 @@
 - 🔍 Advanced search and filtering
 - 🔗 MetaMask wallet integration
 
-> **Note**: The demo video showcases the full functionality of the FundChain platform .
+> **Note**: The demo video showcases the full functionality of the FundChain platform, including blockchain transactions, smart contract interactions, and the n8n AI-powered description generator.
 
 </div>
 
