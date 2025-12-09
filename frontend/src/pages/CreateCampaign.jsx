@@ -45,7 +45,7 @@ const CreateCampaign = () => {
 
   const checkN8nConnection = async () => {
     try {
-      const response = await fetch('https://nonunified-maxwell-noisome.ngrok-free.dev/webhook/test');
+      const response = await fetch('ngrok_link');
       if (response.ok) {
         setN8nStatus('connected');
       } else {
