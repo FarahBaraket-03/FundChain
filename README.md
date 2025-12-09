@@ -23,7 +23,7 @@
 - 📊 **Dual Database Architecture**: Blockchain for transactions, PostgreSQL for metadata
 - 🎨 **Modern UI/UX**: Built with React and TailwindCSS for seamless user experience
 
----
+---           
 
 ## 📚 What You'll Find
 
