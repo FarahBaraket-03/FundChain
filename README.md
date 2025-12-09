@@ -273,7 +273,7 @@ graph TB
     subgraph "Data Layer"
         SEQ[🔄 Sequelize ORM]
         DB[(🗄️ PostgreSQL<br/>Campaign Metadata)]
-        MODELS[📦 Models<br/>Campaign | Donation<br/>Withdrawal | Category]
+        MODELS[📦 Models<br/>Campaign, Donation,<br/>Withdrawal, Category]
     end
     
     UI --> RC
@@ -635,14 +635,7 @@ We welcome contributions! Please follow these steps:
 
 This project is licensed under the ISC License.
 
----
-
-## 👥 Team
-
-**Author**: Farah Baraket  
-**Repository**: [FundChain](https://github.com/FarahBaraket-03/FundChain)
-
----
+--
 
 ## 📞 Support
 
