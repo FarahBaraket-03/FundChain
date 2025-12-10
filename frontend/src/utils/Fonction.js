@@ -1932,18 +1932,29 @@ async syncCampaignFundsWithdrawn(campaignId) {
         if (!campaign) return;
         
         // Récupérer les fonds retirés (peut être dans fundsWithdrawn ou funds_withdrawn)
-        let fundsWithdrawn = campaign.fundsWithdrawn || campaign.funds_withdrawn || 0;
+        let fundsWithdrawn = campaign.fundsWithdrawn;
         
         // Convertir en ETH si nécessaire
         let fundsWithdrawnEth;
-        if (typeof fundsWithdrawn === 'string') {
-            if (fundsWithdrawn.includes('.')) {
-                fundsWithdrawnEth = parseFloat(fundsWithdrawn);
-            } else {
-                fundsWithdrawnEth = parseFloat(this.web3.utils.fromWei(fundsWithdrawn, 'ether'));
+        try {
+            if (typeof fundsWithdrawn === 'number' && !Number.isNaN(fundsWithdrawn)) {
+                fundsWithdrawnEth = fundsWithdrawn;
+            } else if (typeof fundsWithdrawn === 'string') {
+                const parsed = parseFloat(fundsWithdrawn);
+                if (!Number.isNaN(parsed)) {
+                    fundsWithdrawnEth = parsed;
+                } else {
+                    // Fallback: treat as wei string
+                    fundsWithdrawnEth = parseFloat(this.web3.utils.fromWei(fundsWithdrawn.toString(), 'ether'));
+                }
+            } else if (fundsWithdrawn && fundsWithdrawn.toString) {
+                fundsWithdrawnEth = parseFloat(this.web3.utils.fromWei(fundsWithdrawn.toString(), 'ether'));
             }
-        } else {
-            fundsWithdrawnEth = parseFloat(this.web3.utils.fromWei(fundsWithdrawn.toString(), 'ether'));
+
+            fundsWithdrawnEth = parseFloat(Number(fundsWithdrawnEth).toFixed(8));
+        } catch (convError) {
+            console.warn(`Erreur conversion montant ${campaignId}:`, convError);
+            fundsWithdrawnEth = 0;
         }
         
         console.log(`💰 Fonds retirés: ${fundsWithdrawnEth} ETH pour campagne ${campaignId}`);
