@@ -2011,6 +2011,7 @@ async syncCampaignFundsWithdrawn(campaignId) {
 
 
 
+
 // Fonction pour récupérer l'historique des retraits d'une campagne
 async getCampaignWithdrawals(pId) {
     try {
